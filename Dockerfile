@@ -6,7 +6,7 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY src/ /app/src/
-COPY config.yaml /app/
+COPY config.yaml.template /app/config.yaml
 
 VOLUME ["/data"]
 ENV DATA_DIR=/data
