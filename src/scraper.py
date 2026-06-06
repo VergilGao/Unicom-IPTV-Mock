@@ -388,23 +388,20 @@ def process(config_path=None, data_dir=None):
             continue
         cfg_ch = ch_filter_map.get(ch_name)
         display = cfg_ch['name'] if cfg_ch else ch_name
-        m3u_by_no[ch.get('UserChannelID', '')] = (display, ch_name)
+        m3u_by_no[ch.get('UserChannelID', '')] = (display, ch_name, ch.get('ChannelID', ''))
 
+    filtered_count = sum(1 for ch_no in channel_map if ch_no in m3u_by_no)
     selected_channels = []
-    total = len(channel_map)
 
     for i, (ch_no, info) in enumerate(channel_map.items(), 1):
-        ch_id = info['channelId']
-        esaas_name = info['channelName']
-
         if ch_no not in m3u_by_no:
             continue
-        display_name, m3u_name = m3u_by_no[ch_no]
+        display_name, m3u_name, ch_id = m3u_by_no[ch_no]
 
         selected_channels.append((ch_id, display_name))
-        log(f"  [{len(selected_channels)}/{total}] {display_name}")
+        log(f"  [{len(selected_channels)}/{filtered_count}] {display_name}")
 
-        day_data = fetch_epg_for_channel(session, esaas_host, ch_id, start_date, end_date)
+        day_data = fetch_epg_for_channel(session, esaas_host, info['channelId'], start_date, end_date)
         if day_data is None:
             log(f"    No EPG data")
             continue
