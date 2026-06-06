@@ -2,6 +2,7 @@ import sys
 from Crypto.Cipher import DES
 from random import randint
 from requests import Session
+from requests.adapters import HTTPAdapter
 from time import sleep
 from urllib.parse import urlparse
 from re import compile, findall
@@ -247,8 +248,14 @@ def generate_m3u(channels, config_channels, igmp_cfg, output_path):
     log(f"M3U saved: {output_path} ({len(entries)} channels)")
 
 
-def get_esaas_channel_map(esaas_host, area_code):
-    resp = Session().post(
+class CombinedSendAdapter(HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs.setdefault('socket_options', [])
+        return super().init_poolmanager(*args, **kwargs)
+
+
+def get_esaas_channel_map(session, esaas_host, area_code):
+    resp = session.post(
         f'http://{esaas_host}/esaas/v2/live/channel',
         json={"timestamp": "0", "areaCode": area_code},
         headers={'User-Agent': 'okhttp/3.10.0'},
@@ -256,7 +263,6 @@ def get_esaas_channel_map(esaas_host, area_code):
     if not resp.ok:
         log("Failed to get ESAAS channel mapping")
         return {}
-
     data = resp.json()
     channel_map = {}
     for group in data.get('data', []):
@@ -270,8 +276,8 @@ def get_esaas_channel_map(esaas_host, area_code):
     return channel_map
 
 
-def fetch_epg_for_channel(esaas_host, channel_id, start_date, end_date):
-    resp = Session().post(
+def fetch_epg_for_channel(session, esaas_host, channel_id, start_date, end_date):
+    resp = session.post(
         f'http://{esaas_host}/esaas/v1/live/program',
         json={
             "startTime": start_date,
@@ -283,7 +289,6 @@ def fetch_epg_for_channel(esaas_host, channel_id, start_date, end_date):
     )
     if not resp.ok:
         return None
-
     data = resp.json()
     all_programs = []
     for ch_entry in data.get('data', {}).get('channels', []):
@@ -357,8 +362,9 @@ def process(config_path=None, data_dir=None):
 
     log("Getting ESAAS channel mapping...")
     esaas_host = epg_cfg['esaasHost'] if 'esaasHost' in epg_cfg else '139.215.93.40:3100'
+    session.mount(f'http://{esaas_host}', CombinedSendAdapter())
     area_code = epg_cfg['areaCode']
-    channel_map = get_esaas_channel_map(esaas_host, area_code)
+    channel_map = get_esaas_channel_map(session, esaas_host, area_code)
     if not channel_map:
         return
 
@@ -398,7 +404,7 @@ def process(config_path=None, data_dir=None):
         selected_channels.append((ch_id, display_name))
         log(f"  [{len(selected_channels)}/{total}] {display_name}")
 
-        day_data = fetch_epg_for_channel(esaas_host, ch_id, start_date, end_date)
+        day_data = fetch_epg_for_channel(session, esaas_host, ch_id, start_date, end_date)
         if day_data is None:
             log(f"    No EPG data")
             continue
