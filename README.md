@@ -10,7 +10,7 @@
 
 - Web 管理界面（响应式，兼容手机）
 - 自动完成 EDS/EPG 服务器登录鉴权
-- 获取频道列表（组播地址 + 回看地址，255 个频道）
+- 获取频道列表（组播地址 + 回看地址）
 - 频道筛选、重命名、重编号
 - 生成 `iptv.m3u` 播放列表
 - 抓取 ESAAS 节目单 → `epg.xml`
@@ -33,7 +33,7 @@ Phase 3 认证
   → 成功返回 UserToken
 
 Phase 4 频道列表
-  POST /EPG/jsp/getchannellistHWCU.jsp → 返回 255 个频道的 JS 数据
+  POST /EPG/jsp/getchannellistHWCU.jsp → 返回频道列表的 JS 数据
 
 Phase 5 EPG 节目单
   POST /esaas/v2/live/channel → 获取 ESAAS 频道映射
