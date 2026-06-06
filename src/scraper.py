@@ -183,25 +183,48 @@ def generate_m3u(channels, config_channels, igmp_cfg, output_path):
     if config_channels:
         ch_filter = {c['original']: c for c in config_channels}
 
-    lines = [
-        '#EXTM3U',
-        '#KODIPROP:inputstream=inputstream.ffmpegdirect',
-    ]
+    entries = []
+    max_chno = 0
 
     for ch in channels:
         chName = ch.get('ChannelName', '')
-
         if ch_filter and chName not in ch_filter:
             continue
 
         cfg_ch = ch_filter.get(chName) if ch_filter else None
         display_name = cfg_ch['name'] if cfg_ch else chName
-        chNo = str(cfg_ch['chno']) if cfg_ch else ch.get('UserChannelID', '')
+        chno = int(cfg_ch['chno']) if cfg_ch and cfg_ch.get('chno') else 0
 
+        if chno > max_chno:
+            max_chno = chno
+
+        entries.append({
+            'ch': ch,
+            'display_name': display_name,
+            'chno': chno,
+            'cfg_ch': cfg_ch,
+        })
+
+    for e in entries:
+        if e['chno'] == 0:
+            max_chno += 1
+            e['chno'] = max_chno
+
+    entries.sort(key=lambda e: e['chno'])
+
+    lines = [
+        '#EXTM3U',
+        '#KODIPROP:inputstream=inputstream.ffmpegdirect',
+    ]
+
+    for e in entries:
+        ch = e['ch']
         chId = ch.get('ChannelID', '')
         chUrl = ch.get('ChannelURL', '')
         timeshift = ch.get('TimeShift', '0')
         tsUrl = ch.get('TimeShiftURL', '')
+        display_name = e['display_name']
+        chNo = str(e['chno'])
 
         if chUrl.startswith('igmp://'):
             addr = chUrl[7:]
@@ -221,8 +244,7 @@ def generate_m3u(channels, config_channels, igmp_cfg, output_path):
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
 
-    ch_count = len([x for x in channels if not ch_filter or x.get('ChannelName', '') in ch_filter])
-    log(f"M3U saved: {output_path} ({ch_count} channels)")
+    log(f"M3U saved: {output_path} ({len(entries)} channels)")
 
 
 def get_esaas_channel_map(esaas_host, area_code):
