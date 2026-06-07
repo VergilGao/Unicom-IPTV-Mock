@@ -256,19 +256,27 @@ class CombinedSendAdapter(HTTPAdapter):
 
 
 def get_esaas_channel_map(session, esaas_host, area_code):
-    try:
-        resp = session.post(
-            f'http://{esaas_host}/esaas/v2/live/channel',
-            json={"timestamp": "0", "areaCode": area_code},
-            headers={'User-Agent': 'okhttp/3.10.0'},
-            timeout=10,
-        )
-    except Exception:
-        log("Failed to get ESAAS channel mapping")
-        return {}
-    if not resp.ok:
-        log("Failed to get ESAAS channel mapping")
-        return {}
+    for attempt in range(3):
+        try:
+            resp = session.post(
+                f'http://{esaas_host}/esaas/v2/live/channel',
+                json={"timestamp": "0", "areaCode": area_code},
+                headers={'User-Agent': 'okhttp/3.10.0'},
+                timeout=10,
+            )
+        except Exception as e:
+            if attempt == 2:
+                log(f"Failed to get ESAAS channel mapping: {e}")
+                return {}
+            sleep(2)
+            continue
+        if not resp.ok:
+            if attempt == 2:
+                log("Failed to get ESAAS channel mapping")
+                return {}
+            sleep(2)
+            continue
+        break
     data = resp.json()
     channel_map = {}
     for group in data.get('data', []):
@@ -423,6 +431,9 @@ def process(config_path=None, data_dir=None):
         day_data = fetch_epg_for_channel(session, esaas_host, info['channelId'], start_date, end_date)
         if day_data is None:
             log(f"    No EPG data")
+            continue
+        if not day_data:
+            log(f"    No programs in range")
             continue
 
         for date_str, json_str in day_data:
