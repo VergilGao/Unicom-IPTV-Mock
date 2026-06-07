@@ -256,11 +256,16 @@ class CombinedSendAdapter(HTTPAdapter):
 
 
 def get_esaas_channel_map(session, esaas_host, area_code):
-    resp = session.post(
-        f'http://{esaas_host}/esaas/v2/live/channel',
-        json={"timestamp": "0", "areaCode": area_code},
-        headers={'User-Agent': 'okhttp/3.10.0'},
-    )
+    try:
+        resp = session.post(
+            f'http://{esaas_host}/esaas/v2/live/channel',
+            json={"timestamp": "0", "areaCode": area_code},
+            headers={'User-Agent': 'okhttp/3.10.0'},
+            timeout=10,
+        )
+    except Exception:
+        log("Failed to get ESAAS channel mapping")
+        return {}
     if not resp.ok:
         log("Failed to get ESAAS channel mapping")
         return {}
@@ -278,18 +283,31 @@ def get_esaas_channel_map(session, esaas_host, area_code):
 
 
 def fetch_epg_for_channel(session, esaas_host, channel_id, start_date, end_date):
-    resp = session.post(
-        f'http://{esaas_host}/esaas/v1/live/program',
-        json={
-            "startTime": start_date,
-            "endTime": end_date,
-            "channelId": channel_id,
-            "payed": "true",
-        },
-        headers={'User-Agent': 'okhttp/3.10.0'},
-    )
-    if not resp.ok:
-        return None
+    for attempt in range(3):
+        try:
+            resp = session.post(
+                f'http://{esaas_host}/esaas/v1/live/program',
+                json={
+                    "startTime": start_date,
+                    "endTime": end_date,
+                    "channelId": channel_id,
+                    "payed": "true",
+                },
+                headers={'User-Agent': 'okhttp/3.10.0'},
+                timeout=10,
+            )
+        except Exception as e:
+            if attempt == 2:
+                log(f"    Fetch failed after 3 attempts: {e}")
+                return None
+            sleep(2)
+            continue
+        if not resp.ok:
+            if attempt == 2:
+                return None
+            sleep(2)
+            continue
+        break
     data = resp.json()
     all_programs = []
     for ch_entry in data.get('data', {}).get('channels', []):
