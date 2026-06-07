@@ -69,7 +69,7 @@ CREATE UNIQUE INDEX idx_channel_date ON overview (channel_id, date);
             if result:
                 oid, old_hash = result
                 if hash_val == old_hash:
-                    print(f"    Cached, skip")
+                    print(f"    Up to date")
                     return
                 c.execute('UPDATE overview SET hash=? WHERE id=?', (hash_val, oid))
                 c.execute('DELETE FROM programme WHERE overview_id=?', (oid,))
