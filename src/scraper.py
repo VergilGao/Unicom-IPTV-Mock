@@ -222,7 +222,6 @@ def generate_m3u(channels, config_channels, igmp_cfg, output_path):
         ch = e['ch']
         chId = ch.get('ChannelID', '')
         chUrl = ch.get('ChannelURL', '')
-        timeshift = ch.get('TimeShift', '0')
         tsUrl = ch.get('TimeShiftURL', '')
         display_name = e['display_name']
         chNo = str(e['chno'])
@@ -235,8 +234,10 @@ def generate_m3u(channels, config_channels, igmp_cfg, output_path):
 
         extinf = f'#EXTINF:0 tvg-id="{chId}" tvg-name="{display_name}" tvg-chno="{chNo}"'
 
-        if timeshift == '1' and tsUrl:
+        if tsUrl:
             extinf += f' catchup="default" catchup-source="{tsUrl}&playseek={{utc:YmdHMS}}-{{utcend:YmdHMS}}"'
+        else:
+            log(f"  {display_name}: missing catchup URL")
 
         extinf += f',{display_name}'
         lines.append(extinf)
