@@ -1,4 +1,5 @@
 import sqlite3
+import json as _json
 from hashlib import md5
 from os.path import isfile
 from json import loads as json_loads
@@ -54,8 +55,12 @@ CREATE UNIQUE INDEX idx_channel_date ON overview (channel_id, date);
         self.__file = file_path
 
     def save(self, channel_id, channel_name, epg_date, json_str):
-        hash_val = md5(json_str.encode('utf-8')).hexdigest()
         programs = json_loads(json_str)
+        normalized = sorted(
+            [(p['startTime'], p['endTime'], p['text']) for p in programs
+             if all(k in p for k in ('startTime', 'endTime', 'text'))]
+        )
+        hash_val = md5(_json.dumps(normalized, ensure_ascii=False).encode()).hexdigest()
 
         with sqlite3.connect(self.__file) as conn:
             c = conn.cursor()
@@ -69,10 +74,11 @@ CREATE UNIQUE INDEX idx_channel_date ON overview (channel_id, date);
             if result:
                 oid, old_hash = result
                 if hash_val == old_hash:
-                    print(f"    Up to date")
+                    print(f"    {date_str[5:]} Up to date")
                     return
                 c.execute('UPDATE overview SET hash=? WHERE id=?', (hash_val, oid))
                 c.execute('DELETE FROM programme WHERE overview_id=?', (oid,))
+                print(f"    {date_str[5:]} Updated")
             else:
                 c.execute(
                     'INSERT INTO overview (channel_id, channel_name, date, hash) VALUES (?,?,?,?)',
@@ -86,14 +92,11 @@ CREATE UNIQUE INDEX idx_channel_date ON overview (channel_id, date);
                 oid = result[0] if result else None
                 if oid is None:
                     return
+                print(f"    {date_str[5:]} Cached")
 
             insert_list = []
-            for prog in programs:
-                start_time = prog.get('startTime', '')
-                end_time = prog.get('endTime', '')
-                title = prog.get('text', '')
-                if start_time and end_time and title:
-                    insert_list.append((oid, channel_id, title, start_time, end_time))
+            for start_time, end_time, title in normalized:
+                insert_list.append((oid, channel_id, title, start_time, end_time))
 
             c.executemany(
                 'INSERT INTO programme (overview_id, channel_id, title, start, stop) VALUES (?,?,?,?,?)',
